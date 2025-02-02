@@ -50,35 +50,36 @@ impl<R: Read> AcfTokenStream<R> {
             None => None,
         })
     }
+fn next_char(&mut self) -> io::Result<Option<char>> {
+    let mut buf = [0; 4];
+    let mut bytes_read = 0;
 
-    fn next_char(&mut self) -> io::Result<Option<char>> {
-        let mut buf = [0; 4]; // Buffer to hold up to 4 bytes (max UTF-8 char size)
-        let mut bytes_read = 0;
+    loop {
+        match self.read.read(&mut buf[bytes_read..]) { // Read into the remaining part of the buffer
+            Ok(n) => {
+                bytes_read += n;
 
-        // Read bytes until we have a complete UTF-8 character or reach EOF
-        loop {
-            match self.read.read(&mut buf[bytes_read..bytes_read + 1]) {
-                Ok(1) => bytes_read += 1,
-                Ok(0) => break, // EOF
-                Err(e) => return Err(e),
-            }
-
-            // Check if we have a complete UTF-8 character
-            match str::from_utf8(&buf[..bytes_read]) {
-                Ok(s) => return Ok(s.chars().next()), // Return the first char
-                Err(_) => {
-                    if bytes_read == 4 {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "Invalid UTF-8 sequence",
-                        ));
-                    } // Invalid UTF-8, but we read less than 4 bytes, so we read more
+                if bytes_read > 0 { // Check if any bytes were read to avoid calling from_utf8 with an empty slice
+                    match str::from_utf8(&buf[..bytes_read]) {
+                        Ok(s) => return Ok(s.chars().next()),
+                        Err(_) => {
+                            if bytes_read == 4 {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    "Invalid UTF-8 sequence",
+                                ));
+                            }
+                        }
+                    }
+                } else {
+                    return Ok(None); // EOF
                 }
-            }
-        }
 
-        Ok(None) // EOF
-     }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
 
     fn next_non_whitespace_char(&mut self) -> io::Result<Option<char>> {
         while let Some(c) = self.next_char()? {
