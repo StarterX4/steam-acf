@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use std::str; // Import str for UTF-8 conversion
 
 use thiserror::Error;
 
